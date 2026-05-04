@@ -17,8 +17,8 @@ pub use ffi::{ERR_BUFFER_TOO_SMALL, ERR_EXCEPTION, ERR_NULL_HANDLE, OK};
 /// Errors from the EPBot engine.
 #[derive(Error, Debug)]
 pub enum EPBotError {
-    #[error("Failed to create EPBot instance")]
-    CreateFailed,
+    #[error("Failed to create EPBot instance: {0}")]
+    CreateFailed(String),
     #[error("EPBot FFI error (code {code}): {message}")]
     FfiError { code: i32, message: String },
     #[error("Invalid PBN deal: {0}")]
@@ -272,7 +272,7 @@ pub fn encode_bid(bid: &str) -> i32 {
 pub fn version() -> Result<i32, EPBotError> {
     let inst = unsafe { ffi::epbot_create() };
     if inst.is_null() {
-        return Err(EPBotError::CreateFailed);
+        return Err(EPBotError::CreateFailed(get_last_error()));
     }
     let v = unsafe { ffi::epbot_version(inst) };
     unsafe { ffi::epbot_destroy(inst) };
@@ -283,7 +283,7 @@ pub fn version() -> Result<i32, EPBotError> {
 pub fn copyright() -> Result<String, EPBotError> {
     let inst = unsafe { ffi::epbot_create() };
     if inst.is_null() {
-        return Err(EPBotError::CreateFailed);
+        return Err(EPBotError::CreateFailed(get_last_error()));
     }
     let mut buf = [0 as c_char; 512];
     let rc = unsafe { ffi::epbot_copyright(inst, buf.as_mut_ptr(), buf.len() as i32) };
@@ -424,11 +424,14 @@ fn generate_auction_inner(
     for i in 0..4 {
         players[i] = unsafe { ffi::epbot_create() };
         if players[i].is_null() {
+            let reason = get_last_error();
             // Clean up already-created instances
             for j in 0..i {
                 unsafe { ffi::epbot_destroy(players[j]) };
             }
-            return Err(EPBotError::CreateFailed);
+            return Err(EPBotError::CreateFailed(format!(
+                "player {} of 4: {}", i, reason
+            )));
         }
     }
 

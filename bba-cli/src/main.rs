@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::path::PathBuf;
 
 mod batch;
@@ -95,10 +95,15 @@ fn main() -> Result<()> {
         .format_timestamp_millis()
         .init();
 
-    // Show version info
+    // Probe EPBot at startup. If this fails, every per-deal create will fail
+    // identically — surface the underlying reason now so callers don't have to
+    // dig through per-deal output to learn that the engine is dead.
     match epbot_core::version() {
         Ok(v) => info!("BBA-CLI v{} (EPBot {})", env!("CARGO_PKG_VERSION"), v),
-        Err(_) => info!("BBA-CLI v{}", env!("CARGO_PKG_VERSION")),
+        Err(e) => {
+            info!("BBA-CLI v{} (EPBot version check failed)", env!("CARGO_PKG_VERSION"));
+            warn!("EPBot startup probe failed: {}", e);
+        }
     }
 
     debug!("Input: {:?}", args.input);
