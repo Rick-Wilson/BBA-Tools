@@ -414,13 +414,17 @@ fn derive_contract_declarer(bids: &[&str], dealer: i32) -> (String, String) {
         None => return ("Pass".to_string(), "?".to_string()),
     };
 
-    let contract = if redoubled {
+    let raw = if redoubled {
         format!("{}XX", contract_bid)
     } else if doubled {
         format!("{}X", contract_bid)
     } else {
         contract_bid.to_string()
     };
+    // Emit "3N" rather than "3NT" to match the legacy bba-cli-mac output
+    // that David's filter pipeline parses. Strain matching below still uses
+    // contract_bid ("NT" form) against the unmodified auction bids.
+    let contract = raw.replace("NT", "N");
 
     let declaring_pos = (dealer + last_contract_idx as i32) % 4;
     let declaring_side_is_ns = declaring_pos == 0 || declaring_pos == 2;
@@ -451,13 +455,16 @@ fn write_annotated_auction(
     let mut entries: Vec<String> = Vec::new();
 
     for bid in bids {
+        // PBN auction uses "1N"/"3N" rather than "1NT"/"3NT" — matches
+        // legacy bba-cli-mac. See note in derive_contract_declarer.
+        let bid_str = bid.bid.replace("NT", "N");
         let meaning = bid.meaning.as_deref().unwrap_or("");
         if !meaning.is_empty() {
             let note_num = notes.len() + 1;
             notes.push((note_num, meaning.to_string()));
-            entries.push(format!("{} ={}=", bid.bid, note_num));
+            entries.push(format!("{} ={}=", bid_str, note_num));
         } else {
-            entries.push(bid.bid.clone());
+            entries.push(bid_str);
         }
     }
 
