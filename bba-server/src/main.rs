@@ -67,7 +67,7 @@ async fn main() {
         &config.default_ew_card,
     );
 
-    let audit_log = AuditLogService::new(&config.log_path, "2.0.0");
+    let audit_log = AuditLogService::new(&config.log_path, "2.0.1");
 
     let state = AppState {
         semaphore: Arc::new(Semaphore::new(config.max_concurrency)),
@@ -91,6 +91,8 @@ async fn main() {
             "https://game-analysis.bridge-classroom.org".parse().unwrap(),
             "http://localhost:3000".parse().unwrap(),
             "http://localhost:3001".parse().unwrap(),
+            "http://localhost:5173".parse().unwrap(),
+            "http://localhost:4173".parse().unwrap(),
         ]))
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers([
@@ -121,7 +123,7 @@ async fn main() {
         .with_state(state.clone());
 
     let addr = format!("{}:{}", state.config.host, state.config.port);
-    info!("BBA Server v2.0.0 starting on {}", addr);
+    info!("BBA Server v2.0.1 starting on {}", addr);
     info!(
         "EPBot version: {}, max concurrency: {}",
         epbot_version, state.config.max_concurrency
