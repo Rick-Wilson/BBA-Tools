@@ -22,6 +22,25 @@ From Edward Piwowar's NativeAOT build. Located in `epbot-libs/`:
 - `macos/arm64/libEPBot.dylib`
 - `windows/x64/EPBot.dll`, `windows/arm64/EPBot.dll` (Windows builds pending namespace fix)
 
+### EPBot Runtime Quirks
+
+EPBot is NativeAOT-compiled .NET. Its runtime state can get wedged by external factors (system library updates, framework changes, who knows) in ways that produce a recurring symptom. **Recognize the pattern; reboot first; chase code last.**
+
+**Symptom: "Arithmetic operation resulted in an overflow"**
+
+Surfaces from `epbot_create()` via our `EPBotError::CreateFailed` path. Confirmed instances:
+- **Linux droplet, 2026-04-09** — automatic `libssl3` update wedged the runtime; every `epbot_create()` failed. Reboot fixed it.
+- **macOS user (David), 2026-05-04** — same error on the bba-cli v2.2.1 diagnostic build. Same code, same dylib, same OS version as Rick (Tahoe 26.3.1) — only David's machine affected.
+
+**Diagnostic clue.** The failure may be *partial*: `bba-cli`'s startup probe (one create + destroy at [main.rs:99](bba-cli/src/main.rs#L99)) can succeed and print `(EPBot 8740)` even when subsequent per-deal creates fail with the overflow. So a successful version line in stderr does NOT mean EPBot is healthy. If you see "EPBot N" but per-deal failures, that's this bug.
+
+**Don't be fooled by the bbsa context.** The error message often appears alongside convention card filenames in surrounding log lines, which makes it look like a bbsa parsing issue. It isn't — `epbot_create()` runs *before* any convention is loaded ([lib.rs:420-433](epbot-core/src/lib.rs#L420-L433)). The bbsa file is irrelevant.
+
+**Fix order:**
+1. Reboot the affected machine.
+2. If it persists, check for recent OS or framework updates (`softwareupdate --history` on macOS, `apt list --upgradable` + `journalctl -u unattended-upgrades` on Linux).
+3. Only after both: suspect a real code issue.
+
 ## BBA Server (Production)
 
 The Rust bba-server runs on a DigitalOcean droplet, behind Caddy reverse proxy.
@@ -91,7 +110,7 @@ ssh root@146.190.135.172 'cd /opt/livekit && docker compose restart caddy'
 
 Automatic reboots are disabled (`/etc/apt/apt.conf.d/51no-auto-reboot`). Unattended security upgrades still install but won't reboot.
 
-**Important:** System library updates (especially `libssl3`) can break EPBot's NativeAOT runtime without warning. On 2026-04-09, an automatic `libssl3` update caused "Arithmetic operation resulted in an overflow" on all `epbot_create()` calls. A reboot fixed it.
+**Important:** System library updates can wedge EPBot's NativeAOT runtime without warning. If `epbot_create()` starts failing post-update, see "EPBot Runtime Quirks" above — reboot is usually the fix.
 
 **Before applying OS updates:**
 1. Check for pending updates: `ssh root@146.190.135.172 'apt list --upgradable'`
